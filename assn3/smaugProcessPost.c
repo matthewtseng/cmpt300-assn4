@@ -7,9 +7,9 @@
 #include <time.h>
 #include <signal.h>
 #include <sys/types.h>
-#include <sys/ipc.h>
-#include <sys/sem.h>
-#include <sys/shm.h>
+#include <sys/ipc.h> // library for interprocessing communication 
+#include <sys/sem.h> // library for semaphores
+#include <sys/shm.h> // library for shared memory
 #include <sys/time.h>
 #include <sys/resource.h> 
 
@@ -75,8 +75,8 @@ int parentProcessGID = -1;
 /* Flag values (block when semaphore <0, enable undo ...)*/
 
 /*Number in group semaphores*/
-struct sembuf WaitCowsInGroup={SEM_COWSINGROUP, -1, 0};
-struct sembuf SignalCowsInGroup={SEM_COWSINGROUP, 1, 0};
+struct sembuf WaitCowsInGroup={SEM_COWSINGROUP, -1, 0}; // -1 = decrement with Wait
+struct sembuf SignalCowsInGroup={SEM_COWSINGROUP, 1, 0}; // 1 = incremen with Signal
 
 /*Number in group mutexes*/
 struct sembuf WaitProtectCowsInGroup={SEM_PCOWSINGROUP, -1, 0};
@@ -190,7 +190,7 @@ void smaug()
 void initialize()
 {
 	/* Init semaphores */
-	semID=semget(IPC_PRIVATE, 25, 0666 | IPC_CREAT);
+	semID=semget(IPC_PRIVATE, 25, 0666 | IPC_CREAT); // 25 = size of array of semaphores
 
 
 	/* Init to zero, no elements are produced yet */
@@ -368,7 +368,7 @@ void terminateSimulation() {
 		kill(smaugProcessID, SIGKILL);
 		printf("XXTERMINATETERMINATE   killed smaug\n");
 	}
-	while( (w = waitpid( -1, &status, WNOHANG)) > 1){
+	while( (w = waitpid( -1, &status, WNOHANG)) > 1){ // -1 = special case (can put PID instead), any process that hasn't had their status checked; WNOHANG = not a blocking version of pid_t
 			printf("                           REAPED process in terminate %d\n", w);
 	}
 	releaseSemandMem();
@@ -393,19 +393,19 @@ void releaseSemandMem()
 			printf("                           REAPED process in terminate %d\n", w);
 	}
 	printf("\n");
-        if(shmdt(terminateFlagp)==-1) {
-                printf("RELEASERELEASERELEAS   terminateFlag share memory detach failed\n");
-        }
-        else{
-                printf("RELEASERELEASERELEAS   terminateFlag share memory detached\n");
-        }
-        if( shmctl(terminateFlag, IPC_RMID, NULL ))
-        {
-                printf("RELEASERELEASERELEAS   share memory delete failed %d\n",*terminateFlagp );
-        }
-        else{
-                printf("RELEASERELEASERELEAS   share memory deleted\n");
-        }
+    if(shmdt(terminateFlagp)==-1) {
+        printf("RELEASERELEASERELEAS   terminateFlag share memory detach failed\n");
+    }
+    else{
+        printf("RELEASERELEASERELEAS   terminateFlag share memory detached\n");
+    }
+    if( shmctl(terminateFlag, IPC_RMID, NULL ))
+    {
+        printf("RELEASERELEASERELEAS   share memory delete failed %d\n",*terminateFlagp );
+    }
+    else{
+        printf("RELEASERELEASERELEAS   share memory deleted\n");
+    }
 	if( shmdt(cowCounterp)==-1)
 	{
 		printf("RELEASERELEASERELEAS   cowCounterp memory detach failed\n");
