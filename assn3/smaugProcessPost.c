@@ -172,14 +172,17 @@ void smaug()
 			/* Smaug checke to see if another snack is waiting */
 			semopChecked(semID, &WaitProtectMealWaitingFlag, 1);
 			if( *mealWaitingFlagp > 0  ) {
-				printf("SMAUGSMAUGSMAUGSMAUGSMAU   Smaug eats again\n", localpid);
+				printf("SMAUGSMAUGSMAUGSMAUGSMAU   Smaug eats again\n");
+				// printf("SMAUGSMAUGSMAUGSMAUGSMAU   Smaug eats again\n", localpid);
 				continue;
 			}
 			else {
 				semopChecked(semID, &SignalProtectMealWaitingFlag, 1);
-				printf("SMAUGSMAUGSMAUGSMAUGSMAU   Smaug sleeps again\n", localpid);
+				printf("SMAUGSMAUGSMAUGSMAUGSMAU   Smaug sleeps again\n");
+				// printf("SMAUGSMAUGSMAUGSMAUGSMAU   Smaug sleeps again\n", localpid);
 				semopChecked(semID, &WaitDragonSleeping, 1);
-				printf("SMAUGSMAUGSMAUGSMAUGSMAU   Smaug is awake again\n", localpid);
+				printf("SMAUGSMAUGSMAUGSMAUGSMAU   Smaug is awake again\n");				
+				// printf("SMAUGSMAUGSMAUGSMAUGSMAU   Smaug is awake again\n", localpid);
 				break;
 			}
 		}
@@ -500,3 +503,9 @@ double timeChange( const struct timeval startTime )
 
 }
 
+int main()
+{
+	initialize();
+	terminateSimulation();
+	releaseSemandMem();
+}
