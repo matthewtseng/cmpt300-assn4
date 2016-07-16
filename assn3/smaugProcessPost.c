@@ -43,6 +43,8 @@
 #define MAX_DEFEATED_THIEF 15
 #define MAX_TREASURE_IN_HOARD 800
 #define MIN_TREASURE_IN_HOARD 0
+
+/* System constants for initialization*/
 #define INITIAL_TREASURE_IN_HOARD 400
 
 /* System constants to specify size of groups of cows*/
@@ -78,6 +80,7 @@ int mealWaitingFlag = 0;
 
 /* Group IDs for managing/removing processes */
 int smaugProcessID = -1;
+int sheepProcessGID = -1;
 int cowProcessGID = -1;
 int parentProcessGID = -1;
 
@@ -162,6 +165,9 @@ void smaug()
 	/* local counters used only for smaug routine */
 	int cowsEatenTotal = 0;
 	int sheepsEatenTotal = 0;
+	int jewels = INITIAL_TREASURE_IN_HOARD;
+	int treasureDefeatedTotal = 0;
+	int thievesDefeatedTotal = 0;
 
 	/* Initialize random number generator*/
 
@@ -175,28 +181,45 @@ void smaug()
 	printf("SMAUG Smaug has woken up \n" );
 	while (TRUE) {		
 		semopChecked(semID, &WaitProtectMealWaitingFlag, 1);
-		while( *mealWaitingFlagp >= 1) {
+		while(*mealWaitingFlagp >= 1 && (cowsEatenTotal + sheepsEatenTotal < 2)) {
 			*mealWaitingFlagp = *mealWaitingFlagp - 1;
 			printf("SMAUG signal meal flag %d\n", *mealWaitingFlagp);
 			semopChecked(semID, &SignalProtectMealWaitingFlag, 1);
 			printf("SMAUG Smaug is eating a meal\n");
-			for( k = 0; k < COWS_IN_GROUP; k++) {
+			for(k = 0; k<COWS_IN_GROUP; k++) {
 				semopChecked(semID, &SignalCowsWaiting, 1);
 				printf("SMAUG A cow is ready to eat\n");
+			}
+			for(k = 0; k<SHEEPS_IN_GROUP; k++) {
+				semopChecked(semID, &SignalSheepsWaiting, 1);
+				printf("SMAUG A sheep is ready to eat\n");
 			}
 
 			/*Smaug waits to eat*/
 			semopChecked(semID, &WaitDragonEating, 1);
-			for( k = 0; k < COWS_IN_GROUP; k++) {
+			for(k = 0; k<COWS_IN_GROUP; k++) {
 				semopChecked(semID, &SignalCowsDead, 1);
 				cowsEatenTotal++;
 				printf("SMAUG Smaug finished eating a cow\n");
 			}
+			for(k = 0; k<SHEEPS_IN_GROUP; k++) {
+				semopChecked(semID,&SignalSheepsDead, 1);
+				sheepsEatenTotal++;
+				printf("SMAUG Smaug finished eating a sheep\n");
+			}
+
 			printf("SMAUG Smaug has finished a meal\n");
+
+			/*Checks to see if Smaug has reached termination condition*/
 			if(cowsEatenTotal >= MAX_COWS_EATEN) {
 				printf("SMAUG Smaug has eaten the allowed number of cows\n");
 				*terminateFlagp= 1;
 				break; 
+			}
+			if(sheepsEatenTotal	>= MAX_SHEEPS_EATEN) {
+				printf("SMAUG Smaug has eaten the allowed number of sheeps\n");
+				*terminateFlagp = 1;
+				break;
 			}
 
 			/* Smaug checks to see if another snack is waiting */
@@ -356,7 +379,7 @@ void initialize()
 void sheep(int startTimeN)
 {
 	int localpid;
-	int retval;
+	// int retval;
 	int k;
 	localpid = getpid();
 
@@ -387,7 +410,7 @@ void sheep(int startTimeN)
 		*mealWaitingFlagp = *mealWaitingFlagp + 1;
 		printf("SHEEP %d SHEEP signal meal flag %d\n", localpid, *mealWaitingFlagp);
 		semopChecked(semID, &SignalProtectMealWaitingFlag, 1);
-		semopChecked(semID, &SignalDragonSleeping, 1); // signal SMaug's sleeping semaphore to wake him
+		semopChecked(semID, &SignalDragonSleeping, 1); // signal Smaug's sleeping semaphore to wake him
 		printf("SHEEP %d SHEEP last sheep wakes the dragon \n", localpid);
 	}
 	else
@@ -425,7 +448,7 @@ void sheep(int startTimeN)
 void cow(int startTimeN)
 {
 	int localpid;
-	int retval;
+	// int retval;
 	int k;
 	localpid = getpid();
 
@@ -505,6 +528,12 @@ void terminateSimulation() {
 		}
 		printf("XXTERMINATETERMINATE   killed cows \n");
 	}
+	if(sheepProcessGID != (int)localpgid ){
+		if(killpg(sheepProcessGID, SIGKILL) == -1 && errno == EPERM) {
+			printf("XXTERMINATETERMINATE   SHEEPS NOT KILLED\n");
+		}
+		printf("XXTERMINATETERMINATE   killed sheeps \n");
+	}
 	if(smaugProcessID != (int)localpgid ) {
 		kill(smaugProcessID, SIGKILL);
 		printf("XXTERMINATETERMINATE   killed smaug\n");
@@ -547,6 +576,20 @@ void releaseSemandMem()
     else{
         printf("RELEASE share memory deleted\n");
     }
+    if( shmdt(sheepCounterp)==-1)
+    {
+    	printf("RELEASE sheepCounterp memory detach failed\n");
+    }
+    else{
+    	printf("RELEASE sheepCounterp memory detached\n");
+    }
+    if( shmctl(sheepCounter, IPC_RMID, NULL ))
+    {
+    	printf("RELEASE sheepCounter memory delete failed\n");
+    }
+    else{
+    	printf("RELEASE sheepCounter memory deleted\n");
+    }
 	if( shmdt(cowCounterp)==-1)
 	{
 		printf("RELEASE cowCounterp memory detach failed\n");
@@ -574,6 +617,20 @@ void releaseSemandMem()
 	}
 	else{
 		printf("RELEASE mealWaitingFlag share memory deleted\n");
+	}
+	if( shmdt(sheepsEatenCounterp)==-1)
+	{
+		printf("RELEASE sheepsEatenCounterp memory detach failed\n");
+	}
+	else{
+		printf("RELEASE sheepsEatenCounterp memory detached\n");
+	}
+	if( shmctl(sheepsEatenCounter, IPC_RMID, NULL ))
+	{
+		printf("RELEASE sheepsEatenCounter memory delete failed\n");
+	}
+	else{
+		printf("RELEASE sheepsEatenCounter memory detached\n");
 	}
 	if( shmdt(cowsEatenCounterp)==-1)
 	{
@@ -638,14 +695,54 @@ double timeChange( const struct timeval startTime )
 	elapsedTime = (nowTime.tv_sec - startTime.tv_sec)*1000.0;
 	elapsedTime +=  (nowTime.tv_usec - startTime.tv_usec)/1000.0;
 	return elapsedTime;
-
 }
 
 int main()
 {
 	initialize();
-	sheep(50);		
-	cow(50);
-	smaug();
-	releaseSemandMem();
+
+	double sheepTimer = 0;
+	double cowTimer = 0;
+
+	/* Prompt user to enter seed number*/ 
+	int seed;
+	printf("Please enter a random seed to start the simulation: ");
+	scanf("%d", &seed);
+	srand(seed);
+
+	int maxCowInt;
+	printf("Please enter a maximum interval length for cow (ms): ");
+	scanf("%d", &maxCowInt);
+
+	int maxSheepInt;
+	printf("Please enter a maximum interval length for sheep (ms): ");
+	scanf("%d", &maxSheepInt);
+
+	parentProcessGID = getpid();
+	sheepProcessGID = parentProcessGID - 1;
+	cowProcessGID = parentProcessGID - 2;
+
+	pid_t childPID = fork();
+	if (childPID < 0) {
+		printf("FORK FAILED\n");
+		return 1;
+	} else if (childPID = 0) {
+		smaug();
+		return 0;
+	}
+
+	smaugProcessID = childPID;
+
+	double duration = timeChange(startTime);
+
+/*	if (sheepTimer <= duration) {
+		int childPID = fork();
+		if (childPID == 0) { // if child process, create a sheep
+			sheep((rand() % maxSheepInt) / 1000.0);
+			return 0;
+		}
+	}
+*/
+	// releaseSemandMem();
+	terminateSimulation();
 }
