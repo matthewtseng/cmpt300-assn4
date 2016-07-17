@@ -168,6 +168,8 @@ void smaug()
 	int jewels = INITIAL_TREASURE_IN_HOARD;
 	int treasureDefeatedTotal = 0;
 	int thievesDefeatedTotal = 0;
+	int cowsEatenCurrent = 0;
+	int sheepsEatenCurrent = 0;
 
 	/* Initialize random number generator*/
 
@@ -180,19 +182,21 @@ void smaug()
 	semopChecked(semID, &WaitDragonSleeping, 1);
 	printf("SMAUG Smaug has woken up \n" );
 	while (TRUE) {		
+		cowsEatenCurrent = 0;
+		sheepsEatenCurrent = 0;
 		semopChecked(semID, &WaitProtectMealWaitingFlag, 1);
-		while(*mealWaitingFlagp >= 1 && (cowsEatenTotal + sheepsEatenTotal < 2)) {
+		while(*mealWaitingFlagp >= 1 && (cowsEatenCurrent + sheepsEatenCurrent) < 2){ // (*cowCounterp >= 1) && (*sheepCounterp >= 1)
 			*mealWaitingFlagp = *mealWaitingFlagp - 1;
 			printf("SMAUG signal meal flag %d\n", *mealWaitingFlagp);
 			semopChecked(semID, &SignalProtectMealWaitingFlag, 1);
 			printf("SMAUG Smaug is eating a meal\n");
-			for(k = 0; k<COWS_IN_GROUP; k++) {
-				semopChecked(semID, &SignalCowsWaiting, 1);
-				printf("SMAUG A cow is ready to eat\n");
-			}
 			for(k = 0; k<SHEEPS_IN_GROUP; k++) {
 				semopChecked(semID, &SignalSheepsWaiting, 1);
 				printf("SMAUG A sheep is ready to eat\n");
+			}			
+			for(k = 0; k<COWS_IN_GROUP; k++) {
+				semopChecked(semID, &SignalCowsWaiting, 1);
+				printf("SMAUG A cow is ready to eat\n");
 			}
 
 			/*Smaug waits to eat*/
@@ -709,16 +713,20 @@ int main()
 	printf("Please enter a random seed to start the simulation: ");
 	scanf("%d", &seed);
 	srand(seed);
+	// printf("You have entered in %d for seed \n", seed);
 
 	int maxCowInt;
 	printf("Please enter a maximum interval length for cow (ms): ");
 	scanf("%d", &maxCowInt);
+	// printf("You have entered in %d for maximum interval length \n", maxCowInt);
 
 	int maxSheepInt;
 	printf("Please enter a maximum interval length for sheep (ms): ");
 	scanf("%d", &maxSheepInt);
+	// printf("You have entered in %d for maximum interval length \n", maxSheepInt);	
 
 	parentProcessGID = getpid();
+	smaugProcessID = -1;
 	sheepProcessGID = parentProcessGID - 1;
 	cowProcessGID = parentProcessGID - 2;
 
@@ -732,17 +740,29 @@ int main()
 	}
 
 	smaugProcessID = childPID;
+	gettimeofday(&startTime, NULL);
 
-	double duration = timeChange(startTime);
 
-/*	if (sheepTimer <= duration) {
-		int childPID = fork();
-		if (childPID == 0) { // if child process, create a sheep
-			sheep((rand() % maxSheepInt) / 1000.0);
-			return 0;
+
+	while(*terminateFlagp == 0) { // while no termination conditions have been met
+		double duration = timeChange(startTime);		
+		if (sheepTimer <= duration) {
+			int childPID = fork();
+			if (childPID == 0) { // if child process, create a sheep
+				sheep(duration);
+				return 0;
+			}
 		}
+
+/*		if (cowTimer <= duration) {
+			int childPID = fork();
+			if (childPID == 0) { // if child process, create a cow
+				cow((rand() % maxCowInt) / 1000.0);
+				return 0;
+			}
+		}		*/
 	}
-*/
-	// releaseSemandMem();
+
 	terminateSimulation();
+	return 0;
 }
