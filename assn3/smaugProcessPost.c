@@ -521,22 +521,22 @@ void terminateSimulation() {
 	int status;
 
 	localpid = getpid();
-	printf("RELEASESEMAPHORES   Terminating Simulation from process %8d\n", localpgid);
+	printf("RELEASESEMAPHORES Terminating Simulation from process %8d\n", localpgid);
 	if(cowProcessGID != (int)localpgid ){
 		if(killpg(cowProcessGID, SIGKILL) == -1 && errno == EPERM) {
-			printf("XXTERMINATETERMINATE   COWS NOT KILLED\n");
+			printf("TERMINATE COWS NOT KILLED\n");
 		}
-		printf("XXTERMINATETERMINATE   killed cows \n");
+		printf("TERMINATE killed cows \n");
 	}
 	if(sheepProcessGID != (int)localpgid ){
 		if(killpg(sheepProcessGID, SIGKILL) == -1 && errno == EPERM) {
-			printf("XXTERMINATETERMINATE   SHEEPS NOT KILLED\n");
+			printf("TERMINATE SHEEPS NOT KILLED\n");
 		}
-		printf("XXTERMINATETERMINATE   killed sheeps \n");
+		printf("TERMINATE killed sheeps \n");
 	}
 	if(smaugProcessID != (int)localpgid ) {
 		kill(smaugProcessID, SIGKILL);
-		printf("XXTERMINATETERMINATE   killed smaug\n");
+		printf("TERMINATE killed smaug\n");
 	}
 	while( (w = waitpid( -1, &status, WNOHANG)) > 1){ // -1 = special case (can put PID instead), any process that hasn't had their status checked; WNOHANG = not a blocking version of pid_t
 			printf("                           REAPED process in terminate %d\n", w);
