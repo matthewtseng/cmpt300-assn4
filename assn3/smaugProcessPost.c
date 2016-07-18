@@ -137,7 +137,7 @@ struct sembuf SignalDragonFighting={SEM_DRAGONFIGHTING, 1, 0};
 struct sembuf WaitDragonSleeping={SEM_DRAGONSLEEPING, -1, 0}; // SEM 21
 struct sembuf SignalDragonSleeping={SEM_DRAGONSLEEPING, 1, 0};
 struct sembuf WaitDragonSwimming={SEM_DRAGONSWIMMING, -1, 0}; // SEM 22
-struct sembuf SignalDragonSwimming={SEM_DRAGONSWIMMING, -1, 0}; 
+struct sembuf SignalDragonSwimming={SEM_DRAGONSWIMMING, 1, 0}; 
 
 /*Termination Mutex*/
 struct sembuf WaitProtectTerminate={SEM_PTERMINATE, -1, 0}; // SEM 23
@@ -168,8 +168,6 @@ void smaug()
 	int jewels = INITIAL_TREASURE_IN_HOARD;
 	int treasureDefeatedTotal = 0;
 	int thievesDefeatedTotal = 0;
-	int cowsEatenCurrent = 0;
-	int sheepsEatenCurrent = 0;
 
 	/* Initialize random number generator*/
 	/* Random numbers are used to determine the time between successive beasts */
@@ -180,8 +178,6 @@ void smaug()
 	semopChecked(semID, &WaitDragonSleeping, 1);
 	printf("SMAUG Smaug has woken up \n" );
 	while (TRUE) {		
-		cowsEatenCurrent = 0;
-		sheepsEatenCurrent = 0;
 		semopChecked(semID, &WaitProtectMealWaitingFlag, 1);
 		while(*mealWaitingFlagp >= 1){ // (*cowCounterp >= 1) && (*sheepCounterp >= 1)
 			
@@ -392,6 +388,8 @@ void sheep(int startTimeN)
 	int k;
 	localpid = getpid();
 
+	setpgid(localpid, sheepProcessGID);
+
 	/* graze */
 	printf("SHEEP %8d SHEEP A sheep is born\n", localpid);
 	if( startTimeN > 0) {
@@ -400,7 +398,7 @@ void sheep(int startTimeN)
 			if(errno==EINTR)exit(4);
 		}	
 	}
-	printf("SHEEP %8d SHEEP sheep grazes for %f ms\n", localpid, startTimeN/1000.0);
+	printf("SHEEP %8d SHEEP sheep grazes for %f ms\n", localpid, startTimeN/1.0);
 
 	/* does this beast complete a group of BEASTS_IN_GROUP ? */
 	/* if so wake up the dragon */
@@ -452,6 +450,7 @@ void sheep(int startTimeN)
 	semopChecked(semID, &WaitSheepsDead, 1);
 
 	printf("SHEEP %d SHEEP Sheep dies", localpid);
+	kill(localpid, SIGKILL);
 }
 
 void cow(int startTimeN)
@@ -461,6 +460,8 @@ void cow(int startTimeN)
 	int k;
 	localpid = getpid();
 
+	setpgid(localpid, cowProcessGID);
+
 	/* graze */
 	printf("COW %8d COW A cow is born\n", localpid);
 	if( startTimeN > 0) {
@@ -469,8 +470,7 @@ void cow(int startTimeN)
 			if(errno==EINTR)exit(4);
 		}	
 	}
-	printf("COW %8d COW cow grazes for %f ms\n", localpid, startTimeN/1000.0);
-
+	printf("COW %8d COW cow grazes for %f ms\n", localpid, startTimeN/1.0);
 
 	/* does this beast complete a group of BEASTS_IN_GROUP ? */
 	/* if so wake up the dragon */
@@ -479,7 +479,7 @@ void cow(int startTimeN)
 	*cowCounterp = *cowCounterp + 1;
 	printf("COW %8d COW %d cows have been enchanted \n", localpid, *cowCounterp);
 	if(*cowCounterp >= COWS_IN_GROUP) {
-		*cowCounterp = *cowCounterp - COWS_IN_GROUP;		
+		*cowCounterp = *cowCounterp - COWS_IN_GROUP;	
 		for (k=0; k<COWS_IN_GROUP; k++){
 			semopChecked(semID, &WaitCowsInGroup, 1);
 		}
@@ -521,6 +521,7 @@ void cow(int startTimeN)
 	semopChecked(semID, &WaitCowsDead, 1);
 
 	printf("COW %8d COW cow dies\n", localpid);
+	kill(localpid, SIGKILL);
 }
 
 void terminateSimulation() {
@@ -717,7 +718,6 @@ int main()
 	int seed;
 	printf("Please enter a random seed to start the simulation: ");
 	scanf("%d", &seed);
-	srand(seed);
 	// printf("You have entered in %d for seed \n", seed);
 
 	int maxCowInt;
@@ -746,7 +746,7 @@ int main()
 	}
 
 	smaugProcessID = childPID;
-
+	srand(seed);
 	gettimeofday(&startTime, NULL);
 	int stop = 0;
 	while(*terminateFlagp == 0 && stop == 0) { // while no termination conditions have been met
@@ -754,22 +754,22 @@ int main()
 		if (sheepTimer <= duration) {
 			int childPID = fork();
 			if (childPID == 0) { // if child process, create a sheep
-				sheep(duration);
+				sheep((rand() % maxSheepInt) / 1000.0);
 				return 0;
 			}
 		}
 
-		if (duration >= 1000) {
-			stop = 1;
-		}
-
-/*		if (cowTimer <= duration) {
+		if (cowTimer <= duration) {
 			int childPID = fork();
 			if (childPID == 0) { // if child process, create a cow
 				cow((rand() % maxCowInt) / 1000.0);
 				return 0;
 			}
-		}		*/
+		}
+
+		if (duration >= 10000) {
+			stop = 1;
+		}
 	}
 
 	terminateSimulation();
