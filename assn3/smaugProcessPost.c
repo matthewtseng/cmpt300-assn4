@@ -172,8 +172,6 @@ void smaug()
 	int sheepsEatenCurrent = 0;
 
 	/* Initialize random number generator*/
-
-
 	/* Random numbers are used to determine the time between successive beasts */
 	smaugProcessID = getpid();
 	printf("SMAUG PID is %d \n", smaugProcessID);
@@ -185,15 +183,18 @@ void smaug()
 		cowsEatenCurrent = 0;
 		sheepsEatenCurrent = 0;
 		semopChecked(semID, &WaitProtectMealWaitingFlag, 1);
-		while(*mealWaitingFlagp >= 1 && (cowsEatenCurrent + sheepsEatenCurrent) < 2){ // (*cowCounterp >= 1) && (*sheepCounterp >= 1)
+		while(*mealWaitingFlagp >= 1){ // (*cowCounterp >= 1) && (*sheepCounterp >= 1)
+			
 			*mealWaitingFlagp = *mealWaitingFlagp - 1;
 			printf("SMAUG signal meal flag %d\n", *mealWaitingFlagp);
 			semopChecked(semID, &SignalProtectMealWaitingFlag, 1);
 			printf("SMAUG Smaug is eating a meal\n");
+
 			for(k = 0; k<SHEEPS_IN_GROUP; k++) {
 				semopChecked(semID, &SignalSheepsWaiting, 1);
 				printf("SMAUG A sheep is ready to eat\n");
 			}			
+			
 			for(k = 0; k<COWS_IN_GROUP; k++) {
 				semopChecked(semID, &SignalCowsWaiting, 1);
 				printf("SMAUG A cow is ready to eat\n");
@@ -201,11 +202,13 @@ void smaug()
 
 			/*Smaug waits to eat*/
 			semopChecked(semID, &WaitDragonEating, 1);
+			
 			for(k = 0; k<COWS_IN_GROUP; k++) {
 				semopChecked(semID, &SignalCowsDead, 1);
 				cowsEatenTotal++;
 				printf("SMAUG Smaug finished eating a cow\n");
 			}
+			
 			for(k = 0; k<SHEEPS_IN_GROUP; k++) {
 				semopChecked(semID,&SignalSheepsDead, 1);
 				sheepsEatenTotal++;
@@ -220,6 +223,7 @@ void smaug()
 				*terminateFlagp= 1;
 				break; 
 			}
+			
 			if(sheepsEatenTotal	>= MAX_SHEEPS_EATEN) {
 				printf("SMAUG Smaug has eaten the allowed number of sheeps\n");
 				*terminateFlagp = 1;
@@ -228,6 +232,7 @@ void smaug()
 
 			/* Smaug checks to see if another snack is waiting */
 			semopChecked(semID, &WaitProtectMealWaitingFlag, 1);
+			
 			if( *mealWaitingFlagp > 0) {
 				printf("SMAUG Smaug eats again\n");
 				// printf("SMAUG Smaug eats again\n", localpid);
@@ -404,10 +409,10 @@ void sheep(int startTimeN)
 	*sheepCounterp = *sheepCounterp + 1;
 	printf("SHEEP %8d SHEEP %d sheeps have been enchanted \n", localpid, *sheepCounterp);
 	if(*sheepCounterp >= SHEEPS_IN_GROUP) { // if there is enough sheeps to be eaten by Smaug
+		*sheepCounterp = *sheepCounterp - SHEEPS_IN_GROUP;
 		for (k=0; k<SHEEPS_IN_GROUP; k++) {
 			semopChecked(semID, &WaitSheepsInGroup, 1);
 		}
-		*sheepCounterp = *sheepCounterp - SHEEPS_IN_GROUP;
 		printf("SHEEP %8d SHEEP The last sheep is waiting\n", localpid);
 		semopChecked(semID, &SignalProtectSheepsInGroup, 1);
 		semopChecked(semID, &WaitProtectMealWaitingFlag, 1);
@@ -431,10 +436,10 @@ void sheep(int startTimeN)
 	*sheepsEatenCounterp = *sheepsEatenCounterp + 1;
 
 	if (*sheepsEatenCounterp >= SHEEPS_IN_GROUP) {
+		*sheepsEatenCounterp = *sheepsEatenCounterp - SHEEPS_IN_GROUP;		
 		for(k = 0; k<SHEEPS_IN_GROUP; k++) {
 			semopChecked(semID, &WaitSheepsEaten, 1);
 		}
-		*sheepsEatenCounterp = *sheepsEatenCounterp - SHEEPS_IN_GROUP;
 		printf("SHEEP %d SHEEP The last sheep has been eaten\n", localpid);
 		semopChecked(semID, &SignalProtectSheepsEaten, 1);
 		semopChecked(semID, &SignalDragonEating, 1);
@@ -474,10 +479,10 @@ void cow(int startTimeN)
 	*cowCounterp = *cowCounterp + 1;
 	printf("COW %8d COW %d cows have been enchanted \n", localpid, *cowCounterp);
 	if(*cowCounterp >= COWS_IN_GROUP) {
+		*cowCounterp = *cowCounterp - COWS_IN_GROUP;		
 		for (k=0; k<COWS_IN_GROUP; k++){
 			semopChecked(semID, &WaitCowsInGroup, 1);
 		}
-		*cowCounterp = *cowCounterp - COWS_IN_GROUP;
 		printf("COW %8d COW The last cow is waiting\n", localpid);
 		semopChecked(semID, &SignalProtectCowsInGroup, 1);
 		semopChecked(semID, &WaitProtectMealWaitingFlag, 1);
@@ -500,10 +505,10 @@ void cow(int startTimeN)
 	semopChecked(semID, &SignalCowsEaten, 1);
 	*cowsEatenCounterp = *cowsEatenCounterp + 1;
 	if(*cowsEatenCounterp >= COWS_IN_GROUP) {
+		*cowsEatenCounterp = *cowsEatenCounterp - COWS_IN_GROUP;		
 		for (k=0; k<COWS_IN_GROUP; k++){
        		        semopChecked(semID, &WaitCowsEaten, 1);
 		}
-		*cowsEatenCounterp = *cowsEatenCounterp - COWS_IN_GROUP;
 		printf("COW %8d COW The last cow has been eaten\n", localpid);
 		semopChecked(semID, &SignalProtectCowsEaten, 1);
 		semopChecked(semID, &SignalDragonEating, 1);
@@ -718,12 +723,12 @@ int main()
 	int maxCowInt;
 	printf("Please enter a maximum interval length for cow (ms): ");
 	scanf("%d", &maxCowInt);
-	// printf("You have entered in %d for maximum interval length \n", maxCowInt);
+	// printf("You have entered in %d for maximum interval length for cow. \n", maxCowInt);
 
 	int maxSheepInt;
 	printf("Please enter a maximum interval length for sheep (ms): ");
 	scanf("%d", &maxSheepInt);
-	// printf("You have entered in %d for maximum interval length \n", maxSheepInt);	
+	// printf("You have entered in %d for maximum interval length for sheep.\n", maxSheepInt);	
 
 	parentProcessGID = getpid();
 	smaugProcessID = -1;
@@ -731,7 +736,8 @@ int main()
 	cowProcessGID = parentProcessGID - 2;
 
 	pid_t childPID = fork();
-	if (childPID < 0) {
+
+	if (childPID < 0) { // check to see if fork is successful
 		printf("FORK FAILED\n");
 		return 1;
 	} else if (childPID = 0) {
@@ -740,11 +746,10 @@ int main()
 	}
 
 	smaugProcessID = childPID;
+
 	gettimeofday(&startTime, NULL);
-
-
-
-	while(*terminateFlagp == 0) { // while no termination conditions have been met
+	int stop = 0;
+	while(*terminateFlagp == 0 && stop == 0) { // while no termination conditions have been met
 		double duration = timeChange(startTime);		
 		if (sheepTimer <= duration) {
 			int childPID = fork();
@@ -752,6 +757,10 @@ int main()
 				sheep(duration);
 				return 0;
 			}
+		}
+
+		if (duration >= 1000) {
+			stop = 1;
 		}
 
 /*		if (cowTimer <= duration) {
