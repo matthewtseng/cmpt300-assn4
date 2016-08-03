@@ -98,8 +98,6 @@ int main()
     int trucksOn;               /* Number of trucks that have been loaded */
     int fullSpotsOnFerry = 0;  
 
-
-
     /*  Initialize message buffer and start time */
     buf.arrivalInfo[0] = 0;  /* arrival time */
     buf.arrivalInfo[1] = 0;  /* car and truck fullSpotsOnFerryer */
@@ -116,7 +114,7 @@ int main()
     /* Create 4 queues */
     /* 1 from captain to vehicles, 3 from vehicles captain */
     
-    /* Each queue from the vehicles to the capatain represents a lane */
+    /* Each queue from the vehicles to the captain represents a lane */
     /* in the ferry waiting area. There is one lane, called the loading */
     /* lane inside the waiting area. The loading lane this lane holds the */
     /* vehicles that arrived since the previous ferry departed */
@@ -136,7 +134,6 @@ int main()
     /*        area the gates are opened and the cars and trucks needed */
     /*        to complete filling the ferry are taken from the front of */
     /*        the queue in the waiting lane */
-
 
     /* Create queues */
     /* Be sure to verify if the queue has been created and to */
@@ -184,55 +181,57 @@ int main()
 
 
     /* Spawn the vehicle process */
-    if(!(pid = fork())){
+        if(!(pid = fork())) {
         printf("Vehicle process - QID = %d\n", qidToVehicle);
         srand (time(0));
-        while(1) { 
 
-            /* If termination message is received from the captain */
-            /* Reply to the captain to indicate you heard then exit program*/
-            if(msgrcv(qidToVehicle, &buf, length, TERMINATION, IPC_NOWAIT) 
-             != -1 ) {
-                msgsnd(qidToCaptainA, &buf, length, 0);
-                break;
+            while(1) {
+                /* If termination message is received from the captain */
+                /* Reply to the captain to indicate you heard then exit program*/
+                if(msgrcv(qidToVehicle, &buf, length, TERMINATION, IPC_NOWAIT) != -1 ) {
+                    msgsnd(qidToCaptainA, &buf, length, 0);
+                    break;
+                }
+
+                int nextInterval = (int)(((double)rand() / RAND_MAX) * maxTimeToNextArrival);
+
+                /* If present time is later than arrival time of the next vehicle */
+                /*         Determine if the vehicle is a car or truck */
+                /*         Have the vehicle put a message in the queue indicating */
+                /*         that it is in line */
+                /* Then determine the arrival time of the next vehicle */ 
+          
+                if(rand() % 100 <= truckArrivalProb) {
+                    /* This is a truck */
+                    buf.mtype = TRUCK_ARRIVING;
+                    buf.arrivalInfo[0] = lastArrivalTime;
+                    buf.arrivalInfo[1]++;
+                    printf("Vehicle - MSG FROM TRUCK NUMBER %d: %ld %d\n",
+                    buf.arrivalInfo[1], buf.mtype, buf.arrivalInfo[0]);
+                    msgsnd(waitingLane, &buf, length, 0);  
+                }
+                else
+                {
+                    /* This is a car */
+                    buf.mtype = CAR_ARRIVING;
+                    buf.arrivalInfo[0] = lastArrivalTime;
+                    buf.arrivalInfo[1]++; 
+                    printf("Vehicle - MSG FROM CAR NUMBER %d: %ld %d\n", 
+                    buf.arrivalInfo[1], buf.mtype, buf.arrivalInfo[0]);
+                    msgsnd(waitingLane, &buf, length, 0);       
+                }
+                sleep(10);
+                printf("present time %d, next arrival time %d\n", elapsed, lastArrivalTime);  
+                printf("present time %d, next arrival time %d\n", elapsed, lastArrivalTime);           
             }
+        }
 
-
-            /* If present time is later than arrival time of the next vehicle */
-            /*         Determine if the vehicle is a car or truck */
-            /*         Have the vehicle put a message in the queue indicating */
-            /*         that it is in line */
-            /* Then determine the arrival time of the next vehicle */ 
-      
-                
-                        /* This is a car */
-                        buf.mtype = CAR_ARRIVING;
-                        buf.arrivalInfo[0] = lastArrivalTime;
-                        buf.arrivalInfo[1]++; 
-                        printf("Vehicle - MSG FROM CAR NUMBER %d: %ld %d\n", 
-                        buf.arrivalInfo[1], buf.mtype, buf.arrivalInfo[0]);
-                        msgsnd(waitingLane, &buf, length, 0);
-                       
-                       /* This is a truck */
-                        buf.mtype = TRUCK_ARRIVING;
-                        buf.arrivalInfo[0] = lastArrivalTime;
-                        buf.arrivalInfo[1]++;
-                        printf("Vehicle - MSG FROM TRUCK NUMBER %d: %ld %d\n",
-                        buf.arrivalInfo[1], buf.mtype, buf.arrivalInfo[0]);
-                    }
-                    
-                printf("present time %d, next arrival time %d\n", 
-                elapsed, lastArrivalTime);
-            }
-
-
-            if(msgrcv(qidToVehicle, &buf, length, START_LOADING, IPC_NOWAIT) 
-                != -1 ) {
-                /* Captain has sent a message that loading should begin */
-                /* This message has just been received. */
-                /* Have any further vehicles that arrive wait in the */
-                /* empty lane by making the waiting lane the empty lane */
-                /* and making the empty lane the waiting lane */
+            if(msgrcv(qidToVehicle, &buf, length, START_LOADING, IPC_NOWAIT) != -1 ) {
+                    /* Captain has sent a message that loading should begin */
+                    /* This message has just been received. */
+                    /* Have any further vehicles that arrive wait in the */
+                    /* empty lane by making the waiting lane the empty lane */
+                    /* and making the empty lane the waiting lane */
                 captainState = DOCKED_LOADING;
                 printf("Captain state is DOCKED_LOADING\n");
                 emptyLane = waitingLane;
@@ -275,7 +274,6 @@ int main()
                     msgsnd(qidToCaptainA, &buf, length, 0);
                 }
 
-
                 /* When all vehicles in the load have replied to the captain, */
                 /* and the captain has sent the vehicle process a message */
                 /* indicating that the ferry is traveling across the river */
@@ -296,7 +294,7 @@ int main()
             /* Captain has sent a message that unloading should begin */
             /* This message has just been received. */
         /* reply to captain indicating message was received */
-            if(msgrcv(qidToVehicle, &buf, length, FERRY_ARRIVED,
+            if (msgrcv(qidToVehicle, &buf, length, FERRY_ARRIVED,
                 IPC_NOWAIT) != -1 ) {
                 captainState = DOCKED_UNLOADING;
                 fullSpotsOnFerry = 0;
@@ -305,34 +303,25 @@ int main()
                 msgsnd(qidToCaptainA, &buf, length, 0);
             }
 
-
- :
-                if(msgrcv(qidToVehicle, &buf, length, UNLOADING_COMPLETE, 
-                    IPC_NOWAIT) != -1 ) {
-                    buf.mtype = UNLOADING_COMPLETE_ACK;
-                    captainState = SAILING_BACK;
-                    printf("Captain state is SAILING_BACK\n");
-                    msgsnd(qidToCaptainA, &buf, length, 0);
-                }
-            }
-
+            if(msgrcv(qidToVehicle, &buf, length, UNLOADING_COMPLETE, 
+                IPC_NOWAIT) != -1 ) {
+                buf.mtype = UNLOADING_COMPLETE_ACK;
+                captainState = SAILING_BACK;
+                printf("Captain state is SAILING_BACK\n");
+                msgsnd(qidToCaptainA, &buf, length, 0);
+            }   
 
         /* received message that ferry has arrived at loading area */
         /* reply to captain indicating message was received */
-            if(msgrcv(qidToVehicle, &buf, length, FERRY_RETURNED, 
-            IPC_NOWAIT) != -1 ) {
+            if((msgrcv(qidToVehicle, &buf, length, FERRY_RETURNED, IPC_NOWAIT) != -1 )) {
                 captainState = DOCKED_LOADING;
                 printf("Captain state is DOCKED_LOADING\n");
                 buf.mtype = FERRY_RETURNED_ACK;
                 msgsnd(qidToCaptainA, &buf, length, 0);
             }
 
-        }
-        exit(0);
-    }
+    exit(0);
     /* End of Vehicle Process */
-
-
 
     /* Beginning captain process */
     while (1) {
@@ -351,7 +340,6 @@ int main()
         else {
             waitingLane = qidToCaptainB;
         }
-
 
         /* Signal enough vehicles to fill the ferry */
         /* To signal remove message from the CaptainA queue */
