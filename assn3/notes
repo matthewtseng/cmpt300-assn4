@@ -1,8 +1,0 @@
-chmod +x smaugExecutable
-./smaugExecutable
-
-use ipcs command to show shared memory resources
-use ./cleanSem to empty shared memory resources (when it is not attached)
-
-compile:
-gcc -o <executable name> smaugProcessPost.c 
