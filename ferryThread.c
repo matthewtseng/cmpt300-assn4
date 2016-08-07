@@ -17,7 +17,7 @@
 
 /* Constants */
 #define MAX_SPOTS_ON_FERRY 6
-#define MAX_LOADS 3
+#define MAX_LOADS 11
 
 /* Threads to create and control vehicles */
 pthread_t vehicleThread[200];
@@ -52,7 +52,7 @@ sem_t terminate;
 
 /* Pointers and ids for functions */
 void initialize();
-void terminate();
+void terminateSimulation();
 void* car();
 void* truck();
 void* captain();
@@ -72,21 +72,39 @@ int maxTimeToNextArrival; /* Maximum number of milliseconds between vehicle arri
 
 int main() 
 {
+	/* Create semaphores */
 	initialize();
 
-	pthread_join(createVehicleThread, NULL);
-	printf("Create vehicle joined\n");
-	pthread_join(captainThread, NULL);
-	printf("Captain joined\n");
+    printf("Please enter integer values for the following variables\n");
+    printf("Enter the %% probability that the next vehicle is a truck\n");
+    scanf("%d", &truckArrivalProb );
+    printf("Enter the maximum length of the interval between vehicles (> 1000)\n");
+    scanf("%d", &maxTimeToNextArrival );
 
-	terminate();
+	/* Create threads */
+	pthread_create(&createVehicleThread, NULL, createVehicle, NULL);
+	pthread_create(&captainThread, NULL, captain, NULL);	
+
+	pthread_mutex_initChecked(&protectCarWaiting, NULL);
+	pthread_mutex_initChecked(&protectTruckWaiting, NULL);
+	pthread_mutex_initChecked(&protectCarUnloaded, NULL);
+	pthread_mutex_initChecked(&protectTruckUnloaded, NULL);
+
+    /* Wait until processes creating threads to make vehicles return to main program */
+    /* Then terminate them by joining them back to the original thread */
+	pthread_join(createVehicleThread, NULL);
+	printf("Create vehicle thread joined\n");
+	pthread_join(captainThread, NULL);
+	printf("Captain thread joined\n");
+
+	terminateSimulation();
 	printf("Simulation has completed\n");
 	exit(0);
 }
 
 void initialize()
 {
-	printf("Initialize start\n")
+	printf("Initialize start\n");
 
 	/* Initialize to zero, no elements are produced yet */
 	sem_initChecked(&carWaiting, 0, 0);
@@ -101,17 +119,10 @@ void initialize()
 	sem_initChecked(&readyUnload, 0, 0);
 	sem_initChecked(&terminate, 0, 0);
 	printf("Semaphores initialized\n");
-	
-	/* Initialize threads */
-	pthread_create(&vehicleThread, NULL, createVehicle, NULL);
-	pthread_create(&captainThread, NULL, captain, NULL);
 
 	/* Initialize Mutex to one */
-	pthread_mutex_initChecked(&protectCarWaiting, NULL);
-	pthread_mutex_initChecked(&protectTruckWaiting, NULL);
-	pthread_mutex_initChecked(&protectCarUnloaded, NULL);
-	pthread_mutex_initChecked(&protectTruckUnloaded, NULL);
-	printf("Mutexes initialized\n");
+
+	// printf("Mutexes initialized\n");
 
 	printf("Initialize end\n");
 }
@@ -131,12 +142,12 @@ void terminateSimulation()
 	sem_destroyChecked(&carLoaded);
 	sem_destroyChecked(&truckLoaded);
 	sem_destroyChecked(&vehiclesSailed);
-	sem_destroyChecked(vehiclesArrived);
-	sem_destroyChecked(carUnloaded);
-	sem_destroyChecked(truckUnloaded);
-	sem_destroyChecked(waitUnload);
-	sem_destroyChecked(readyUnload);
-	sem_destroyChecked(terminate);
+	sem_destroyChecked(&vehiclesArrived);
+	sem_destroyChecked(&carUnloaded);
+	sem_destroyChecked(&truckUnloaded);
+	sem_destroyChecked(&waitUnload);
+	sem_destroyChecked(&readyUnload);
+	sem_destroyChecked(&terminate);
 	printf("Semaphores destroyed\n");
 
 	printf("Terminate end\n");
@@ -156,13 +167,14 @@ void* createVehicle()
 	elapsed = timeChange(startTime);
 	srand(time(0));
 
-	while(1) 
+	while (1) 
 	{
 		elapsed = timeChange(startTime);
-		while(elapsed >= lastArrivalTime)
+		while (elapsed >= lastArrivalTime)
 		{
 			printf("Creating vehicle! Elasped time: %d; Arrival time: %d\n", elapsed, lastArrivalTime);
-			if (lastArrivalTime > 0) {
+			if (lastArrivalTime > 0) 
+			{
 				if (rand() % 100 > truckArrivalProb)
 				{
 					/* Vehicle is a car */
@@ -177,8 +189,8 @@ void* createVehicle()
 				}
 				vehicleThreadCounter++;
 			}
-			lastArrivalTime += rand() % maxTimeToNextArrival;
-			printf(" Created vehicle! Elasped time: %d; Arrival Time: %d\n", elasped, lastArrivalTime);
+			lastArrivalTime = lastArrivalTime + rand() % maxTimeToNextArrival;
+			printf(" Created vehicle! Elasped time: %d; Arrival Time: %d\n", elapsed, lastArrivalTime);
 		}
 	}
 	printf("End of creating vehicles thread");
@@ -189,14 +201,15 @@ void* captain()
 	int loads = 0; /* Counter for how many loads have occurred */
 	int numCarWaiting = 0; /* Used as placeholder for counter variable */
 	int numTruckWaiting = 0; /* Used as placeholder for counter variable */
+	int numTrucksLoaded = 0; /* Counter to ensure up to two trucks are allowed on the ferry at once */
 	int numSpacesFilled = 0; /* Used as counter for loading */
-	int numSpacesEmpty /* Used as counter for unloading */
+	int numSpacesEmpty = 0; /* Used as counter for unloading */
 	int numVehicles = 0; /* Counter for total vehicles */
 	int i = 0; /* Counter for the for loops used later on */
 
 	printf("Captain process started\n");
 
-	while (loads < LOAD_MAX) /* While load is less than 11 (LOAD_MAX) */
+	while (loads < MAX_LOADS) /* While load is less than 11 (LOAD_MAX) */
 	{
 		/* Since we prioritize trucks when loading ferry, we start off with trucks */
 		/* Reset variables in every loop through the while */
@@ -223,7 +236,7 @@ void* captain()
 				printf("Truck signalled to leave queue\n");
 				sem_postChecked(&truckWaiting);
 				pthread_mutex_unlockChecked(&protectTruckWaiting);
-				numTrucksWaiting--;
+				numTruckWaiting--;
 				numTrucksLoaded++;
 				numSpacesFilled = numSpacesFilled + 2;
 				numVehicles++;
@@ -237,7 +250,7 @@ void* captain()
 				printf("Car signalled to leave queue\n");
 				sem_postChecked(&carWaiting);
 				pthread_mutex_unlockChecked(&protectCarWaiting);
-				numCarsWaiting--;
+				numCarWaiting--;
 				numSpacesFilled++;
 				numVehicles++;
 			}
@@ -259,7 +272,13 @@ void* captain()
 		}
 
 		/* After loading successfully, ferry waits for signals from vehicles */
-		printf("Captain signals ferry is full and is now sailing\n")
+		printf("Captain signals ferry is full and is now sailing\n");
+
+		for (i = 0; i < numVehicles; i++)
+		{
+			printf("Vehicle %d is now sailing\n", i);
+			sem_postChecked(&vehiclesSailed);
+		}
 
 		/* Waiting for vehicles to signal back to captain, after sets sail to destination */
 		for (i = 0; i < numVehicles; i++) 
@@ -269,6 +288,10 @@ void* captain()
 		}
 
 		/* Signal vehicles to unload from ferry */
+		for (i = 0; i < numVehicles; i++)
+		{
+			sem_postChecked(&readyUnload);
+		}
 		for (i = 0; i < numVehicles; i++)
 		{
 			sem_postChecked(&waitUnload);
@@ -306,6 +329,7 @@ void* captain()
 			printf ("Terminating vehicle %d\n", i);
 			sem_post(&terminate);
 		}
+
 		printf("\nCaptain has arrived at home dock\n");
 		loads++;
 	}
@@ -329,7 +353,7 @@ void* truck()
 
 	/* Captain signalled car to be loaded */
 	printf("Truck %5lu onboard ferry\n", *threadID);
-	sem_postChecked(&truckWaiting);
+	sem_postChecked(&truckLoaded);
 
 	/* Waiting for ferry to be full so it can sail */
 	sem_waitChecked(&vehiclesSailed);
@@ -337,7 +361,7 @@ void* truck()
 
 	/* Sail across the river and wait for signal from captain */
 	sem_waitChecked(&vehiclesArrived);
-	prinf("Truck %5lu has arrived at destination dock\n", *threadID);
+	printf("Truck %5lu has arrived at destination dock\n", *threadID);
 	sem_postChecked(&readyUnload);
 
 	/* Unloading the ferry */
@@ -371,7 +395,7 @@ void* car()
 
 	/* Captain signalled car to be loaded */
 	printf("Car %5lu onboard ferry\n", *threadID);
-	sem_postChecked(&carWaiting);
+	sem_postChecked(&carLoaded);
 
 	/* Waiting for ferry to be full so it can sail */
 	sem_waitChecked(&vehiclesSailed);
@@ -379,7 +403,7 @@ void* car()
 
 	/* Sail across the river and wait for signal from captain */
 	sem_waitChecked(&vehiclesArrived);
-	prinf("Car %5lu has arrived at destination dock\n", *threadID);
+	printf("Car %5lu has arrived at destination dock\n", *threadID);
 	sem_postChecked(&readyUnload);
 
 	/* Unloading the ferry */
